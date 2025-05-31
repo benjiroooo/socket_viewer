@@ -518,7 +518,7 @@ function onResize() {
 let thumbEnlarge = false; // if thumbnail is clicked, that is enlarged and this flag is set
 const THUMB_SCALING = 3; // thumbnail scaling magnification
 const THUMB_HEIGHT = 150; // Change from 96 to 150 (or whatever size you want)
-const CANVAS_SIZE = [2048, 1000]; // Change from [1024, 500] to higher resolution
+const CANVAS_SIZE = [2048, 1024]; // Change from [1024, 500] to higher resolution
 function initTumbnail() {
   let thumb = document.getElementById('thumb');
   thumb.style.width = THUMB_HEIGHT * 2 + 'px';
