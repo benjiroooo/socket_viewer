@@ -1,64 +1,173 @@
 <!DOCTYPE html>
 <html>
+  <head>
+    <title>SocketViewer</title>
+    <script type="text/javascript" src="js/lib/dat.gui.min.js"></script>
+    <script type="text/javascript" src="js/lib/protobuf.min.js"></script>
+    <script type="text/javascript" src="js/lib/stats.min.js"></script>
+    <script type="text/javascript" src="js/lib/three.min.js"></script>
+    <script type="text/javascript" src="js/ViewControls.js"></script>
+    <script type="text/javascript" src="js/Mouse.js"></script>
+    <script type="text/javascript" src="js/PointCloud.js"></script>
+    <script type="text/javascript" src="js/CameraFrames.js"></script>
+    <script type="text/javascript" src="js/MarkerIndicators.js"></script>
 
-<head>
-  <title>SocketViewer</title>
-  <script type="text/javascript" src="js/lib/dat.gui.min.js"></script>
-  <script type="text/javascript" src="js/lib/protobuf.min.js"></script>
-  <script type="text/javascript" src="js/lib/stats.min.js"></script>
-  <script type="text/javascript" src="js/lib/three.min.js"></script>
-  <script type="text/javascript" src="js/ViewControls.js"></script>
-  <script type="text/javascript" src="js/Mouse.js"></script>
-  <script type="text/javascript" src="js/PointCloud.js"></script>
-  <script type="text/javascript" src="js/CameraFrames.js"></script>
-  <script type="text/javascript" src="js/MarkerIndicators.js"></script>
-
-  <style>
-    body {
-      margin: 0;
-      overflow: hidden;
-    }
-
-    #thumb {
-      position: absolute;
-      top: 0px;
-      left: 80px;
-      background-color: #000;
-    }
-  </style>
-</head>
-
-<body>
-  <canvas id="thumb" height="300" width="600"></canvas>
-  <div id="Stats-output">
-  </div>
-  <div id="WebGL-output">
-  </div>
-  <script type="text/javascript" src="js/main.js"></script>
-  <script type="text/javascript" src="/socket.io/socket.io.js"></script>
-  <script>
-    let socket = io();
-
-    socket.on("map_publish", function (msg) {
-      receiveProtobuf(msg)
-    });
-
-    let ctx = document.getElementById('thumb').getContext('2d');
-    socket.on("frame_publish", function (msg) {
-      if (msg.image) {
-        let img = new Image();
-        img.src = 'data:image/jpeg;base64,' + msg.buffer;
-        img.onload = function () {
-          ctx.drawImage(img, 0, 0, this.width, this.height, 0, 0, CANVAS_SIZE[0], CANVAS_SIZE[1]);
-        }
+    <style>
+      :root {
+        --bg-primary: #ffffff;
+        --bg-secondary: #f5f5f5;
+        --text-primary: #000000;
+        --text-secondary: #333333;
+        --border-color: #cccccc;
+        --button-bg: #007bff;
+        --button-hover: #0056b3;
       }
-    });
 
-    // load main function
-    window.onload = init;
-    // listen to the resize events
-    window.addEventListener('resize', onResize, false);
-  </script>
-</body>
+      [data-theme='dark'] {
+        --bg-primary: #1a1a1a;
+        --bg-secondary: #2d2d2d;
+        --text-primary: #ffffff;
+        --text-secondary: #cccccc;
+        --border-color: #555555;
+        --button-bg: #0d6efd;
+        --button-hover: #0b5ed7;
+      }
 
+      body {
+        margin: 0;
+        overflow: hidden;
+        background-color: var(--bg-primary);
+        color: var(--text-primary);
+        transition: background-color 0.3s ease, color 0.3s ease;
+      }
+
+      #thumb {
+        position: absolute;
+        top: 0px;
+        left: 0px;
+        background-color: #000;
+        border: 2px solid var(--border-color);
+        transition: border-color 0.3s ease;
+      }
+
+      #Stats-output {
+        position: absolute;
+        top: 10px;
+        right: 320px;
+        z-index: 1000;
+        display: flex;
+        flex-direction: row;
+        gap: 10px;
+        background-color: transparent;
+        color: var(--text-primary);
+        transition: color 0.3s ease;
+      }
+
+      #Stats-output > div {
+        background-color: var(--bg-secondary) !important;
+        border: 1px solid var(--border-color);
+        border-radius: 3px;
+        transition: background-color 0.3s ease, border-color 0.3s ease;
+      }
+
+      #WebGL-output {
+        background-color: var(--bg-primary);
+        transition: background-color 0.3s ease;
+      }
+
+      [data-theme='dark'] .dg.main {
+        background-color: var(--bg-secondary) !important;
+        color: var(--text-primary) !important;
+      }
+
+      [data-theme='dark'] .dg .cr.number input[type='text'] {
+        background-color: var(--bg-primary) !important;
+        color: var(--text-primary) !important;
+        border: 1px solid var(--border-color) !important;
+      }
+
+      [data-theme='dark'] .dg .cr.boolean {
+        background-color: var(--bg-secondary) !important;
+      }
+
+      [data-theme='dark'] .dg .c input[type='text'] {
+        background-color: var(--bg-primary) !important;
+        color: var(--text-primary) !important;
+      }
+
+      #Stats-output .stats {
+        position: relative !important;
+        top: auto !important;
+        left: auto !important;
+      }
+    </style>
+  </head>
+
+  <body>
+    <canvas id="thumb" height="600" width="1200"></canvas>
+    <div id="Stats-output"></div>
+    <div id="WebGL-output"></div>
+    <script type="text/javascript" src="js/main.js"></script>
+    <script type="text/javascript" src="/socket.io/socket.io.js"></script>
+    <script>
+      // Set initial theme on page load
+      const currentTheme = localStorage.getItem('theme') || 'light';
+      document.body.setAttribute('data-theme', currentTheme);
+
+      // Set initial renderer background when page loads
+      window.addEventListener('load', function () {
+        setTimeout(() => {
+          if (typeof window.updateRendererBackground === 'function') {
+            window.updateRendererBackground(currentTheme === 'dark');
+          }
+        }, 1000);
+      });
+
+      let socket = io();
+
+      socket.on('map_publish', function (msg) {
+        receiveProtobuf(msg);
+      });
+
+      // Add handler for raw test data
+      socket.on('map_data_raw', function (data) {
+        console.log('Received raw test data:', data);
+
+        // Call updateMapElements directly with the test data
+        updateMapElements(
+          1000, // msgSize
+          data.keyframes || [],
+          data.edges || [],
+          data.landmarks || [],
+          data.localLandmarks || [],
+          null, // currentFramePose
+          data.markers || []
+        );
+      });
+
+      let ctx = document.getElementById('thumb').getContext('2d');
+      socket.on('frame_publish', function (msg) {
+        if (msg.image) {
+          let img = new Image();
+          img.src = 'data:image/jpeg;base64,' + msg.buffer;
+          img.onload = function () {
+            ctx.drawImage(
+              img,
+              0,
+              0,
+              this.width,
+              this.height,
+              0,
+              0,
+              CANVAS_SIZE[0],
+              CANVAS_SIZE[1]
+            );
+          };
+        }
+      });
+
+      window.onload = init;
+      window.addEventListener('resize', onResize, false);
+    </script>
+  </body>
 </html>
